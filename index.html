@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>多粉對談</title>
+<script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" />
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
+<script src="fantalk.js"></script>
+<style>
+body {
+    overflow: hidden;
+}
+.container-fluid {
+    display: flex;
+    flex-direction: column;
+}
+nav.navbar {
+    flex: 0;
+}
+
+#area-chat {
+	height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#chat-area {
+	width: 100%;
+    flex: 1 1 auto;
+	height: 0px;
+	overflow: auto;
+}
+
+</style>
+</head>
+<body>
+<div class="container-fluid">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">多粉對談</a>
+    </nav>
+    <div id="area-chat" class="row" style="display: none">
+        <div id="chat-area"></div>
+        <form id="form-say">
+			<input type="text" name="talk" class="form-control" placeholder="說些什麼 Say something" aria-label=">說些什麼 Say something" aria-describedby="button-addon2">
+        </form>
+		<button class="btn btn-danger" id="btn-leave-chat">離開聊天</button>
+    </div>
+	<div id="area-main">
+		<h1 style="display:none" id="people-count">目前線上共有 <span id="number">1</span> 人</h1>
+		<h1 id="status">連線中...</h1>
+		<div class="modal" tabindex="-1" style="display: none" id="prompt-invite">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title">是否願意接受配對？</h5>
+					</div>
+					<div class="modal-body">
+						<div id="prompt-invite-answers"></div>
+						<div>對方狀態：<span id="invite-status"></span></div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-secondary" id="btn-reject">不願意</button>
+						<button type="button" class="btn btn-primary" id="btn-accept">願意</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="question-list"></div>
+<script type="text/html" id="tmpl-question">
+<div class="question">
+<span class="question-text"></span>
+<button class="btn" data-ans="2">非常贊成</button>
+<button class="btn" data-ans="1">贊成</button>
+<button class="btn" data-ans="0">中立</button>
+<button class="btn" data-ans="-1">反對</button>
+<button class="btn" data-ans="-2">非常反對</button>
+<button class="btn" data-ans="false">沒興趣</button>
+</div>
+</script>
+<script id="tmpl-chat-message" type="text/html">
+<div class="message">
+    <div class="content">
+        <div>
+            <span class="user-name" title=""><strong></strong></span>
+            <span class="message-time" title=""></span>
+        </div>
+    </div>
+</div>
+</script>
+	</div>
+	<div id="area-chat" style="display:none">
+	</div>
+</div>
+<script>
+connect_main_jitsi().then(function(ret){
+	$('#status').text('加入大廳中');
+	// connected
+	return join_main_room();
+}, function(ret){
+	// error
+	$('#status').text('連線失敗');
+}).then(function(){
+	// room joined
+	$('#status').text('回答完問題後進行配對');
+	$('#people-count').show();
+	update_answers();
+});
+
+var questions = {
+    '2020092401': ['你支不支持死刑'],
+    '2020092402': ['你贊不贊成無條件基本收入'],
+	'2020092403': ['你支不支持要有兩段式左轉'],
+};
+update_question_list(questions);
+
+$('#question-list').on('click', 'button', function(e){
+	e.preventDefault();
+	var question_dom = $(this).parents('.question');
+	var ans = $(this).attr('data-ans');
+	if (ans == 'false') {
+		ans = false;
+	}
+	my_answers[question_dom.data('id')] = ans;
+	$('button', question_dom).removeClass('btn-primary');
+	$(this).addClass('btn-primary');
+	localStorage.setItem('answers', JSON.stringify(my_answers));
+	update_answers();
+});
+
+$('#btn-accept').click(function(e){
+	e.preventDefault();
+	accept_invite(inviting_user);
+});
+
+$('#btn-reject').click(function(e){
+	e.preventDefault();
+	reject_invite(inviting_user);
+});
+
+$('#form-say').submit(function(e){
+	e.preventDefault();
+	var say = $('[name="talk"]', this).val();
+    if (!say) {
+        return;
+    }
+	chat_room.sendTextMessage(say);
+    $('[name="talk"]', this).val('');
+});
+
+var add_chat_message = function(say, nick, ts){
+	var d;
+    if ('undefined' === typeof(ts)) {
+        d = new Date();
+    } else {
+        d = new Date(ts);
+    }
+	var dom = $('#chat-area .message:last');
+	if (dom.length && (d.getTime() - dom.data('ts').getTime() < 60 * 2 * 1000) && nick == dom.data('nick')) {
+	} else {
+		dom = $($('#tmpl-chat-message').html());
+		dom.data('ts', d);
+		dom.data('nick', nick);
+		$('.user-name strong', dom).text(nick);
+		$('.message-time', dom).text(('00' + d.getHours()).slice(-2) + ':' + ('00' + d.getMinutes()).slice(-2));
+		$('#chat-area').append(dom);
+	}
+
+    $('.content', dom).append($('<div></div>').text(say));
+	$('#chat-area').scrollTop($('#chat-area')[0].scrollHeight);
+};
+
+$('#btn-leave-chat').click(function(e){
+	e.preventDefault();
+	close_chat();
+});
+
+$(window).resize(function(e){
+    var width = $('body').width();
+    var height = window.innerHeight;
+    $('.container-fluid').css({width: width, height: height});
+}).resize();
+
+</script>
+</body>
+</html>
