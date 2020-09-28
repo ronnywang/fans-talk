@@ -61,9 +61,10 @@ var join_main_room = function(){
     main_room.on(
         JitsiMeetJS.events.conference.CONFERENCE_JOINED,
         function(){
-            update_main_user_list();
-
             main_room.on(JitsiMeetJS.events.conference.USER_JOINED, (id, user) => {
+                update_main_user_list();
+            });
+            main_room.on(JitsiMeetJS.events.conference.DATA_CHANNEL_OPENED, () => {
                 update_main_user_list();
             });
             main_room.on(JitsiMeetJS.events.conference.USER_LEFT, (id, user) => {
@@ -186,7 +187,13 @@ var game_pair = function(){
 	
 	$('#status').text('配對到，詢問意願中');
 	updateMyStatus('asking');
-	main_room.sendEndpointMessage(matching_user.getId(), {type: 'invite-ask'});
+    try {
+        main_room.sendEndpointMessage(matching_user.getId(), {type: 'invite-ask'});
+    } catch (e) {
+        console.log('data is not open, retry');
+        updateMyStatus('pairing');
+        return;
+    }
 	inviting_user = matching_user.getId();
 	pair_room_id = room_id = '';
 };
