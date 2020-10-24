@@ -84,7 +84,7 @@ class FanTalk implements Ratchet\MessageComponentInterface {
                     }
                 }
             } else if ($obj->type == 'reject') {
-                $player->from;
+                $player = $from;
                 $target_player = $this->players->{$from->pair};
                 foreach (array($player, $target_player) as $p) {
                     $p->status = 'pairing';
