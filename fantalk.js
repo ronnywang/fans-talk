@@ -229,8 +229,15 @@ var prompt_invite = function(participant){
 	$('#prompt-invite #prompt-invite-answers').html('');
 	var map = {'2': '非常贊成', '1': '贊成', '0': '中立', '-1': '反對', '-2': '非常反對', 'false': '沒興趣'};
 	user_answers = JSON.parse(participant.getProperty('answers'));
+    $('#compare-table').html('');
 	for (var id in questions) {
 		$('#prompt-invite #prompt-invite-answers').append($('<p></p>').text(questions[id][0] + ': ' + map[user_answers[id]]));
+        var tr_dom = $('<tr></tr>');
+        tr_dom.append($('<td></td>').text(questions[id][0]));
+        tr_dom.append($('<td></td>').text(map[my_answers[id]]));
+        tr_dom.append($('<td></td>').text(map[user_answers[id]]));
+        $('#compare-table').append(tr_dom);
+
 	}
 	$('#invite-status').text('等待回應中');
 };

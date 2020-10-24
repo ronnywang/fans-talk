@@ -37,6 +37,13 @@ nav.navbar {
 	overflow: auto;
 }
 
+#chat-notice {
+    position: fixed;
+    right: 0px;
+    top: 200px;
+    width: 30%;
+}
+
 </style>
 </head>
 <body>
@@ -46,6 +53,21 @@ nav.navbar {
     </nav>
     <div id="area-chat" class="row" style="display: none">
         <div id="chat-area"></div>
+        <div id="chat-notice">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>題目</th>
+                        <th>我的立場</th>
+                        <th>對方的立場</th>
+                    </tr>
+                </thead>
+                <tbody id="compare-table">
+                </tbody>
+            </table>
+            聊天建議事項：<br>
+            1. 這邊是一些建議聊天方式<br>
+        </div>
         <form id="form-say">
 			<input type="text" name="talk" class="form-control" placeholder="說些什麼 Say something" aria-label=">說些什麼 Say something" aria-describedby="button-addon2">
         </form>
