@@ -9,9 +9,6 @@
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" />
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
-<script src="https://www.youtube.com/iframe_api"></script>
-<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
-<script src="fantalk.js?v=2"></script>
 <style>
 body {
     overflow: hidden;
@@ -121,27 +118,46 @@ nav.navbar {
 	</div>
 </div>
 <script>
-connect_main_jitsi().then(function(ret){
-	$('#status').text('加入大廳中');
-	// connected
-	return join_main_room();
-}, function(ret){
-	// error
-	$('#status').text('連線失敗');
-}).then(function(){
-	// room joined
-	$('#status').text('回答完問題後進行配對');
-	$('#people-count').show();
-	update_answers();
-});
-
-var questions = {
-    '2020092401': ['你支不支持死刑'],
-    '2020092402': ['你贊不贊成無條件基本收入'],
-	//'2020092403': ['你支不支持要有兩段式左轉'],
-    '2020102401': ['你贊不贊成嚴格禁止餵食動物'],
+mySocket = new WebSocket('wss://wss.fantalk.ronny.tw/fantalk');
+$('#status').text('加入大廳中');
+mySocket.onopen = function(){
 };
-update_question_list(questions);
+mySocket.onmessage = function(e){
+    var obj = JSON.parse(e.data);
+    console.log(obj);
+    if (obj.type == 'welcome') {
+        // room joined
+        $('#number').text(obj.people_count);
+        $('#status').text('回答完問題後進行配對');
+        $('#people-count').show();
+        questions = obj.questions;
+        update_question_list(questions);
+        update_answers();
+    } else if (obj.type =='matched') {
+        prompt_invite(obj.answers, obj.accepted);
+    } else if (obj.type == 'cancelled') {
+        $('#prompt-invite').hide();
+        $('#area-chat').hide();
+        $('#area-main').show();
+        $('#prompt-invite').hide();
+        $('#status').text('配對中');
+    } else if (obj.type == 'start') {
+        $('#area-chat').show();
+        $('#area-main').hide();
+        $('#chat-area').html('');
+    } else if (obj.type == 'talk') {
+        add_chat_message(obj.message, '對方');
+    } else if (obj.type == 'end') {
+        $('#prompt-invite').hide();
+        $('#area-chat').hide();
+        $('#area-main').show();
+        $('#prompt-invite').hide();
+        $('#status').text('配對中');
+    }
+};
+
+
+var questions;
 
 $('#question-list').on('click', 'button', function(e){
 	e.preventDefault();
@@ -159,12 +175,15 @@ $('#question-list').on('click', 'button', function(e){
 
 $('#btn-accept').click(function(e){
 	e.preventDefault();
-	accept_invite(inviting_user);
+    mySocket.send(JSON.stringify({type:"accept"}));
+    $('#invite-status').text('您已同意，就等對方了');
 });
 
 $('#btn-reject').click(function(e){
 	e.preventDefault();
-	reject_invite(inviting_user);
+
+    mySocket.send(JSON.stringify({type:"reject"}));
+    $('#prompt-invite').hide();
 });
 
 $('#form-say').submit(function(e){
@@ -173,7 +192,8 @@ $('#form-say').submit(function(e){
     if (!say) {
         return;
     }
-	chat_room.sendTextMessage(say);
+    mySocket.send(JSON.stringify({type: "talk", message: say}));
+    add_chat_message(say, '我');
     $('[name="talk"]', this).val('');
 });
 
@@ -201,7 +221,7 @@ var add_chat_message = function(say, nick, ts){
 
 $('#btn-leave-chat').click(function(e){
 	e.preventDefault();
-	close_chat();
+    mySocket.send(JSON.stringify({type:"end"}));
 });
 
 $(window).resize(function(e){
@@ -209,6 +229,65 @@ $(window).resize(function(e){
     var height = window.innerHeight;
     $('.container-fluid').css({width: width, height: height});
 }).resize();
+
+var my_answers = {};
+
+var update_question_list = function(questions){
+	if (localStorage.getItem('answers')) {
+		try {
+			my_answers = JSON.parse(localStorage.getItem('answers'));
+		} catch (e) { }
+	}
+    for (var id in questions) {
+		var question_dom = $($('#tmpl-question').html());
+		question_dom.data('id', id);
+		$('.question-text', question_dom).text(questions[id]);
+		if ('undefined' !== typeof(my_answers[id])) {
+			ans = my_answers[id];
+			if (ans === false) {
+				ans = 'false';
+			}
+			$('button[data-ans="' + ans + '"]', question_dom).addClass('btn-primary');
+		}
+		$('#question-list').append(question_dom);
+	}
+	update_answers();
+};
+
+var update_answers = function(){
+	for (var id in questions) {
+		if ('undefined' === typeof(my_answers[id])) {
+			// 有答案還未回答就不配對
+			return;
+		}
+	}
+    $('#status').text('配對中');
+    mySocket.send(JSON.stringify({type:"answer",answers:my_answers}));
+};
+
+// 配對
+var prompt_invite = function(user_answers, accepted){
+    $('#status').text('請問您願意跟這位配對嗎？');
+	$('#prompt-invite').show();
+	$('#prompt-invite #prompt-invite-answers').html('');
+	var map = {'2': '非常贊成', '1': '贊成', '0': '中立', '-1': '反對', '-2': '非常反對', 'false': '沒興趣'};
+    $('#compare-table').html('');
+	for (var id in questions) {
+		$('#prompt-invite #prompt-invite-answers').append($('<p></p>').text(questions[id] + ': ' + map[user_answers[id]]));
+        var tr_dom = $('<tr></tr>');
+        tr_dom.append($('<td></td>').text(questions[id]));
+        tr_dom.append($('<td></td>').text(map[my_answers[id]]));
+        tr_dom.append($('<td></td>').text(map[user_answers[id]]));
+        $('#compare-table').append(tr_dom);
+
+	}
+    if (accepted) {
+        $('#invite-status').text('對方已同意，就等你了');
+    } else {
+        $('#invite-status').text('等待回應中');
+    }
+};
+
 
 </script>
 </body>
