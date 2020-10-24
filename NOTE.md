@@ -1,3 +1,50 @@
+==== websocket ====
+狀態
+----
+* status
+  * answering
+    * 正準備要回答問題，此時不會有任何配對
+    * 回答完問題後會變成 pairing
+    * 指令
+        * S=>C: 第一次登入提供線上人數和題目資訊
+          {"type":"welcome","people_count":123,"questions":{...}}
+        * C=>S: 回答問題等待配對
+          {"type":"answer","answers":{}}
+  * pairing
+    * 正準備要配對
+    * 有配對到的話可以進到 requesting 狀態
+    * 指令
+        * C=>S: 回答問題等待配對
+          {"type":"answer","answers":{}}
+  * requesting
+    * 得到雙方同意中
+    * 雙方都同意的話會進入 chating
+    * 有一方拒絕就進到 pairing
+        * S=>C: 配對到了，詢問是否要接受 (accepted 表示對方接受了沒，可能會收到兩次 macthed)
+          {"type":"matched","answers":{},"accepted":false}
+        * C=>S: 同意配對
+          {"type":"accept"}
+        * C=>S: 拒絕配對
+          {"type":"reject"}
+        * S=>C: 對方取消了配對
+          {"type":"canceled"}
+        * S=>C: 開始聊天，收到後進入 chating 狀態
+          {"type":"start"}
+  * chating
+    * 開始聊天中
+    * 當有人送出 end 時會結束聊天回到 pairing 狀態
+        * C=>S: 說話
+          {"type":"talk","message":"xxx"}
+        * S=>C: 有人說話
+          {"type":"talk","message":"xxx"}
+        * C=>S: 結束對話
+          {"type":"end"}
+        * S=>C: 對方取消了配對，收到後進入 pairing 狀態
+          {"type":"canceled"}
+
+
+
+====以下廢止====
 * local storage (永久保存資料)
   * answers
     * JSON object, key 是題號, value 是 -2 ~ +2 或 null ，配對用的
