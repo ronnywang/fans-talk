@@ -83,8 +83,13 @@ class FanTalk implements Ratchet\MessageComponentInterface {
                         )));
                     }
                 }
+                return;
             } else if ($obj->type == 'reject') {
                 $player = $from;
+                if (!property_exists($this->players, $from->pair)) {
+                    // TODO
+                    return;
+                }
                 $target_player = $this->players->{$from->pair};
                 $player->rejected->{$target_player->player_id} = true;
                 $target_player->rejected->{$player->player_id} = true;
@@ -99,11 +104,14 @@ class FanTalk implements Ratchet\MessageComponentInterface {
         } else if ($from->status == 'chating') {
             if ($obj->type == 'talk') {
                 $this->log(array('t' => 'talk', 'player_id' => $from->player_id, 'message' => $obj->message));
-                $target_player = $this->players->{$from->pair};
-                $target_player->send(json_encode(array(
-                    'type' => 'talk',
-                    'message' => $obj->message,
-                )));
+                if (property_exists($this->players, $from->pair)) {
+                    $target_player = $this->players->{$from->pair};
+                    $target_player->send(json_encode(array(
+                        'type' => 'talk',
+                        'message' => $obj->message,
+                    )));
+                }
+                return;
             } else if ($obj->type == 'end') {
                 $player = $from;
                 $target_player = $this->players->{$from->pair};
@@ -116,13 +124,14 @@ class FanTalk implements Ratchet\MessageComponentInterface {
                     )));
                 }
                 $this->pair();
+                return;
             }
         } else {
             $from->send(json_encode(array('type' => 'error', 'message' => 'invalid status')));
             return;
         }
 
-        $from->send(json_encode(array('type' => 'error', 'message' => 'invalid command')));
+        $from->send(json_encode(array('type' => 'error', 'message' => 'invalid command', 'msg' => strval($msg))));
         return;
     }
 
@@ -181,7 +190,18 @@ class FanTalk implements Ratchet\MessageComponentInterface {
     }
 
     public function onClose(Ratchet\ConnectionInterface $conn) {
-        unset($this->players->{$conn->player_id});
+        if ($this->players->{$conn->player_id}->status == 'chating') {
+            $player = $conn;
+            $target_player = $this->players->{$conn->pair};
+            $target_player->status = 'pairing';
+            $target_player->send(json_encode(array(
+                'type' => "cancelled",
+            )));
+            unset($this->players->{$conn->player_id});
+            $this->pair();
+        } else {
+            unset($this->players->{$conn->player_id});
+        }
     }
 
     public function onError(Ratchet\ConnectionInterface $conn, \Exception $e) {
